@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "652884480519",
+    "project_id": "nominapp-6e1b3",
+    "storage_bucket": "nominapp-6e1b3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:652884480519:android:b85e04e8823c57c27f50a2",
+        "android_client_info": {
+          "package_name": "com.example.nominapp_t2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcnf8AP-v6VZIZfwgn4mXyCzoaFDhGOFY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
