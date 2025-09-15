@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/detalle_nomina_viewmodel.dart';
+import '../viewmodels/usuario_viewmodel.dart';
 import '../models/solicitud.dart';
 
 class DetalleNominaView extends StatefulWidget {
@@ -12,10 +13,21 @@ class DetalleNominaView extends StatefulWidget {
 }
 
 class _DetalleNominaViewState extends State<DetalleNominaView> {
+  final _searchCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => context.read<DetalleNominaViewModel>().cargar());
+    Future.microtask(() {
+      final uid = context.read<UsuarioViewModel>().currentUser!.uid;
+      context.read<DetalleNominaViewModel>().cargar(uid);
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -30,24 +42,27 @@ class _DetalleNominaViewState extends State<DetalleNominaView> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Valor actual
+            // Valor actual (sin cambios visuales)
             Text(
               vm.nominaActual != null
                   ? '\$ ${vm.nominaActual!.valorActual}'
                   : '\$ ---',
               style: const TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.deepPurple,
+              ),
             ),
             const SizedBox(height: 16),
 
-            // Barra de búsqueda
+            // Barra de búsqueda (misma UI; ahora filtra por descripción)
             TextField(
-              controller: vm.searchCtrl,
+              controller: _searchCtrl,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.menu),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
-                  onPressed: () => vm.aplicarBusqueda(vm.searchCtrl.text),
+                  onPressed: () => vm.setQuery(_searchCtrl.text),
                 ),
                 hintText: 'Buscar Solicitud',
                 border: OutlineInputBorder(
@@ -55,24 +70,28 @@ class _DetalleNominaViewState extends State<DetalleNominaView> {
                 ),
                 filled: true,
               ),
-              onChanged: vm.aplicarBusqueda,
+              onChanged: vm.setQuery, // filtra en vivo por descripción
             ),
             const SizedBox(height: 12),
 
-            // Lista
+            // Lista (misma UI), ahora con vm.visibles
             Expanded(
-              child: vm.solicitudesFiltradas.isEmpty
+              child: vm.visibles.isEmpty
                   ? const Center(child: Text('Sin solicitudes este mes'))
                   : ListView.separated(
-                itemCount: vm.solicitudesFiltradas.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemCount: vm.visibles.length,
+                separatorBuilder: (_, __) =>
+                const SizedBox(height: 8),
                 itemBuilder: (_, i) {
-                  final s = vm.solicitudesFiltradas[i];
+                  final s = vm.visibles[i];
                   return _SolicitudItem(
                     solicitud: s,
                     descuento: vm.montoDescuento(s),
                     onTap: () => Navigator.pushNamed(
-                        context, '/detalleSolicitud', arguments: s),
+                      context,
+                      '/detalleSolicitud',
+                      arguments: s,
+                    ),
                   );
                 },
               ),
@@ -89,7 +108,11 @@ class _SolicitudItem extends StatelessWidget {
   final num descuento;
   final VoidCallback onTap;
   const _SolicitudItem({
-    required this.solicitud, required this.descuento, required this.onTap, super.key});
+    required this.solicitud,
+    required this.descuento,
+    required this.onTap,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +142,7 @@ class _SolicitudItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Mantengo el mismo título (con ID) para no cambiar la apariencia
                   Text('Solicitud ${solicitud.id}',
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                   Text(solicitud.fecha, style: const TextStyle(fontSize: 12)),

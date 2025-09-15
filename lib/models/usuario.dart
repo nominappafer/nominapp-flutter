@@ -7,6 +7,8 @@ class Usuario {
   final String cedula;
   final int salarioBase;
   final DateTime fechaIngreso;
+  final String? descansoInicio;  // 'YYYY-MM-DD'
+  final int? descansoCadaDias;
 
   Usuario({
     required this.uid,
@@ -17,6 +19,8 @@ class Usuario {
     required this.cedula,
     required this.salarioBase,
     required this.fechaIngreso,
+    this.descansoInicio,
+    this.descansoCadaDias,
   });
 
   factory Usuario.fromMap(String uid, Map<String, dynamic> data) {
@@ -29,6 +33,10 @@ class Usuario {
       cedula: data['cedula'] ?? '',
       salarioBase: data['salarioBase'] ?? 0,
       fechaIngreso: DateTime.tryParse(data['fechaIngreso'] ?? '') ?? DateTime(2000),
+      descansoInicio: data['descansoInicio'] as String?,
+      descansoCadaDias: (data['descansoCadaDias'] is int)
+          ? data['descansoCadaDias'] as int
+          : (data['descansoCadaDias'] is num ? (data['descansoCadaDias'] as num).toInt() : null),
     );
   }
 }

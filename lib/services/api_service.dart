@@ -62,7 +62,11 @@ class ApiService {
     final r = await http.get(Uri.parse('$base/api/solicitudesNomina/pendientes'));
     if (r.statusCode == 200) {
       final list = jsonDecode(r.body) as List;
-      return list.map((e) => Solicitud.fromMapAuditoria(e as Map<String, dynamic>)).toList();
+      // ANTES: fromMapAuditoria
+      // AHORA:
+      return list
+          .map((e) => Solicitud.fromMapPendienteNomina(e as Map<String, dynamic>))
+          .toList();
     } else {
       throw Exception('HTTP ${r.statusCode}: ${r.body}');
     }
@@ -137,6 +141,150 @@ class ApiService {
     );
 
     if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+  // GET: estado del día (usa el GET sugerido)
+  Future<Map<String, dynamic>?> getAsistenciaDia(String ymd) async {
+    final r = await http.get(Uri.parse('$base/asistencia/$ymd'));
+    if (r.statusCode == 200) {
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    } else if (r.statusCode == 404) {
+      return null; // no existe aún
+    } else {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  // POST: iniciar (si no existe)
+  Future<void> iniciarAsistencia(String ymd) async {
+    final r = await http.post(
+      Uri.parse('$base/asistencia/iniciar'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({"fecha": ymd}),
+    );
+    if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  // POST: marcar presente/ausente para un uid en fecha
+  Future<void> marcarAsistencia({
+    required String uid,
+    required String fechaYMD,
+    required bool presente,
+  }) async {
+    final r = await http.post(
+      Uri.parse('$base/asistencia/marcar'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        "uid": uid,
+        "fecha": fechaYMD,
+        "accion": presente ? "presente" : "ausente",
+      }),
+    );
+    if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  // POST: cerrar el día (aplica penalización)
+  Future<void> cerrarAsistencia(String ymd) async {
+    final r = await http.post(
+      Uri.parse('$base/asistencia/cerrar'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({"fecha": ymd}),
+    );
+    if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  // (opcional) GET lista empleados activos si aún no la tienes en otro servicio
+  Future<List<Map<String, dynamic>>> getEmpleadosActivos() async {
+    final r = await http.get(Uri.parse('$base/api/empleados'));
+    if (r.statusCode == 200) {
+      return (jsonDecode(r.body) as List).cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+  Future<Map<String, dynamic>> registrarEmpleado({
+    required String nombre,
+    required String email,
+    required String cedula,
+    required String rol,
+    required num salarioBase,
+    String? password,
+    String? descansoInicio,     // YYYY-MM-DD (opcional)
+    int? descansoCadaDias,      // opcional
+    String? sector,
+  }) async {
+    final body = {
+      'nombre': nombre,
+      'email': email,
+      'cedula': cedula,
+      'rol': rol,
+      'salarioBase': salarioBase,
+      if (password != null && password.isNotEmpty) 'password': password,
+      if (descansoInicio != null) 'descansoInicio': descansoInicio,
+      if (descansoCadaDias != null) 'descansoCadaDias': descansoCadaDias,
+      if (sector != null && sector.isNotEmpty) 'sector': sector, // <--- NUEVO
+
+    };
+    final r = await http.post(
+      Uri.parse('$base/api/empleados'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    if (r.statusCode >= 200 && r.statusCode < 300) {
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+  Future<List<Solicitud>> getSolicitudesDescansoPendientes() async {
+    final r = await http.get(Uri.parse('$base/api/solicitudesDescanso/pendientes'));
+    if (r.statusCode == 200) {
+      final list = jsonDecode(r.body) as List;
+      return list
+          .map((e) => Solicitud.fromMapPendienteDescanso(e as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  Future<void> resolverSolicitudDescanso({
+    required String uidSolicitante,
+    required String solicitudId,
+    required String resueltoPor,
+    required String accion, // 'aprobar' | 'rechazar'
+    String? razonEstado,
+  }) async {
+    final url = Uri.parse(
+        '$base/api/empleados/$uidSolicitante/solicitudesDescanso/$solicitudId/resolver');
+    final r = await http.patch(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'accion': accion,
+        'resueltoPor': resueltoPor,
+        'razonEstado': razonEstado ?? 'Sin especificar',
+      }),
+    );
+    if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw Exception('HTTP ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNominasActuales() async {
+    final r = await http.get(Uri.parse('$base/api/nominas/actuales'));
+    if (r.statusCode == 200) {
+      final data = jsonDecode(r.body) as Map<String, dynamic>;
+      final list = (data['nominas'] as List).cast<Map<String, dynamic>>();
+      return list;
+    } else {
       throw Exception('HTTP ${r.statusCode}: ${r.body}');
     }
   }

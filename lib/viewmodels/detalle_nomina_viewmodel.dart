@@ -1,6 +1,6 @@
 // lib/viewmodels/detalle_nomina_viewmodel.dart
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import '../models/nomina.dart';
 import '../models/solicitud.dart';
 import '../services/api_service.dart';
@@ -9,72 +9,102 @@ class DetalleNominaViewModel extends ChangeNotifier {
   final _api = ApiService();
 
   Nomina? nominaActual;
-  List<Solicitud> _solicitudesMes = [];
-  List<Solicitud> solicitudesFiltradas = [];
+
+  // Fuente completa del mes activo (solicitudes del usuario en ese mes)
+  List<Solicitud> _todas = [];
+
+  // Lo que ve la UI tras aplicar búsqueda
+  List<Solicitud> visibles = [];
+
   bool loading = false;
   String? error;
 
-  final searchCtrl = TextEditingController();
+  // Query de búsqueda (por descripción)
+  String query = '';
 
-  String get periodoYYYYMM {
-    // nomina.periodoActual puede ser "2025-01-01" o "2025-01"
-    final p = nominaActual?.periodoActual ?? '';
-    // toma YYYY-MM
-    return p.length >= 7 ? p.substring(0, 7) : '';
-  }
+  // Mes actual a mostrar (lo derivamos de la nómina activa)
+  DateTime currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
-  Future<void> cargar() async {
+  String get mesY => DateFormat('yyyy-MM').format(currentMonth);
+
+  /// Carga nómina actual + solicitudes del usuario y deja _todas en el mes de la nómina
+  Future<void> cargar(String uid) async {
     try {
       loading = true; error = null; notifyListeners();
 
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-
-      // 1) nómina actual
+      // 1) Nómina activa
       nominaActual = await _api.getNominaActual(uid);
 
-      // 2) solicitudes del usuario (todas) y filtramos por mes de la nómina
+      // Derivar el mes de la nómina activa
+      // periodoActual puede ser "YYYY-MM" o "YYYY-MM-DD"
+      final p = nominaActual?.periodoActual ?? '';
+      if (p.length >= 7) {
+        final parts = p.substring(0, 7).split('-'); // [YYYY, MM]
+        final y = int.parse(parts[0]);
+        final m = int.parse(parts[1]);
+        currentMonth = DateTime(y, m);
+      }
+
+      // 2) Traer solicitudes (subcolección del usuario)
       final todas = await _api.getSolicitudesNominaUsuario(uid);
-      final target = periodoYYYYMM;
 
-      _solicitudesMes = todas.where((s) {
-        final f = s.fecha; // ISO string "2025-08-11T..." ó "2025-08-11"
-        if (f.isEmpty || target.isEmpty) return false;
-        return f.startsWith(target); // coincide YYYY-MM
+      // 3) Filtrar por mes actual (comparando prefijo YYYY-MM de la fecha ISO)
+      final prefijoMes = mesY; // "YYYY-MM"
+      _todas = todas.where((s) {
+        final f = (s.fecha).trim();
+        return f.startsWith(prefijoMes);
       }).toList()
-        ..sort((a, b) => (b.fecha).compareTo(a.fecha)); // recientes primero
+        ..sort((a, b) => (b.fecha).compareTo(a.fecha)); // más recientes primero
 
-      // arranque sin filtro
-      solicitudesFiltradas = List.of(_solicitudesMes);
+      // 4) Aplicar filtro de búsqueda (si lo hay)
+      _aplicarFiltro();
     } catch (e) {
       error = '$e';
+      visibles = [];
     } finally {
-      loading = false; notifyListeners();
+      loading = false;
+      notifyListeners();
     }
   }
 
-  void aplicarBusqueda(String q) {
-    final query = q.trim().toLowerCase();
-    if (query.isEmpty) {
-      solicitudesFiltradas = List.of(_solicitudesMes);
+  /// Cambiar el texto de búsqueda (solo por descripción)
+  void setQuery(String q) {
+    query = q;
+    _aplicarFiltro();
+  }
+
+  /// Si en el futuro permites cambiar de mes desde la UI, llama esto y recarga.
+  void cambiarMes(DateTime nuevoMes) {
+    currentMonth = DateTime(nuevoMes.year, nuevoMes.month);
+    _aplicarFiltro();
+  }
+
+  void _aplicarFiltro() {
+    final q = query.trim().toLowerCase();
+    final prefijoMes = mesY;
+
+    // Por seguridad, re-asegura que solo estén las del mes visible
+    Iterable<Solicitud> base = _todas.where((s) => s.fecha.startsWith(prefijoMes));
+
+    if (q.isEmpty) {
+      visibles = base.toList();
     } else {
-      solicitudesFiltradas = _solicitudesMes.where((s) {
-        final id = (s.id).toLowerCase();
+      visibles = base.where((s) {
         final desc = (s.descripcion).toLowerCase();
-        return id.contains(query) || desc.contains(query);
+        return desc.contains(q); // <— filtro SOLO por descripción
       }).toList();
     }
     notifyListeners();
   }
 
+  /// Valor que se muestra al final de la card (tu UI espera decrementos)
+  /// - Solo cuenta solicitudes APROBADAS con valor positivo (adelantos).
+  /// - Ignora bonos (valor negativo) y no aprobadas.
   num montoDescuento(Solicitud s) {
-    // Si la solicitud está aprobada y pertenece a este mes → descuentó "valor".
-    if ((s.estado == 'aprobado') && (s.valor != null)) return s.valor!;
+    if (s.estado == 'aprobado' && s.valor != null) {
+      final v = s.valor!;
+      return v > 0 ? v : 0;
+    }
     return 0;
-  }
-
-  @override
-  void dispose() {
-    searchCtrl.dispose();
-    super.dispose();
   }
 }
