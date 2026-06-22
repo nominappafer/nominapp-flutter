@@ -119,10 +119,42 @@ class RegistrarEmpleadoView extends StatelessWidget {
                 obscureText: true,
               ),
               const SizedBox(height: 20),
-              TextFormField(
-                controller: vm.sectorCtrl,
+              DropdownButtonFormField<String>(
+                value: vm.sector,
                 decoration: const InputDecoration(labelText: 'Sector'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'admistrativo',
+                    child: Text('Admistrativo'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'greco',
+                    child: Text('Greco'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'cocina',
+                    child: Text('Cocina'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'pizzeria',
+                    child: Text('Pizzería'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'pasteleria',
+                    child: Text('Pastelería'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'pan',
+                    child: Text('Pan'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  vm.sector = value;
+                  vm.notifyListeners();
+                },
+                validator: (value) =>
+                    (value == null || value.isEmpty) ? 'Requerido' : null,
               ),
               if (vm.error != null)
                 Padding(

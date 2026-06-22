@@ -12,7 +12,7 @@ class RegistrarEmpleadoViewModel extends ChangeNotifier {
   final descansoInicioCtrl = TextEditingController();
   final descansoCadaCtrl = TextEditingController(text: '16');
   String rol = 'empleado';
-  final sectorCtrl = TextEditingController();
+  String sector = 'admistrativo';
 
   final _api = ApiService();
   bool loading = false;
@@ -25,23 +25,30 @@ class RegistrarEmpleadoViewModel extends ChangeNotifier {
   Future<bool> enviar() async {
     if (!formKey.currentState!.validate()) return false;
     try {
-      loading = true; error = null; creadoUid = null; notifyListeners();
+      loading = true;
+      error = null;
+      creadoUid = null;
+      notifyListeners();
 
-      final salario = num.tryParse(salarioCtrl.text.replaceAll(',', '.')) ?? -1;
+      final salario =
+          num.tryParse(salarioCtrl.text.replaceAll(',', '.')) ?? -1;
       if (salario <= 0) {
         error = 'Salario base inválido';
-        loading = false; notifyListeners();
+        loading = false;
+        notifyListeners();
         return false;
       }
       final descansoCada = int.tryParse(descansoCadaCtrl.text.trim()) ?? 16;
       if (descansoCada <= 0) {
         error = 'Descanso cada N días debe ser > 0';
-        loading = false; notifyListeners(); return false;
+        loading = false;
+        notifyListeners();
+        return false;
       }
       final descansoInicio = (descansoSeleccionado != null)
-          ? '${descansoSeleccionado!.year.toString().padLeft(4,'0')}-'
-          '${descansoSeleccionado!.month.toString().padLeft(2,'0')}-'
-          '${descansoSeleccionado!.day.toString().padLeft(2,'0')}'
+          ? '${descansoSeleccionado!.year.toString().padLeft(4, '0')}-'
+              '${descansoSeleccionado!.month.toString().padLeft(2, '0')}-'
+              '${descansoSeleccionado!.day.toString().padLeft(2, '0')}'
           : null; // si lo dejas null, el backend pondrá default (hoy)
 
       final resp = await _api.registrarEmpleado(
@@ -50,23 +57,25 @@ class RegistrarEmpleadoViewModel extends ChangeNotifier {
         cedula: cedulaCtrl.text.trim(),
         rol: rol,
         salarioBase: salario,
-        password: passwordCtrl.text.trim().isEmpty ? null : passwordCtrl.text.trim(),
-        descansoInicio: descansoInicio,            // <-- nuevo
+        password: passwordCtrl.text.trim().isEmpty
+            ? null
+            : passwordCtrl.text.trim(),
+        descansoInicio: descansoInicio, // <-- nuevo
         descansoCadaDias: descansoCada,
-        sector: sectorCtrl.text.trim().isEmpty ? null : sectorCtrl.text.trim(),// <-- nuevo
+        sector: sector.trim().isEmpty ? null : sector.trim(), // <-- nuevo
       );
 
       creadoUid = resp['uid'] as String?;
-      loading = false; notifyListeners();
+      loading = false;
+      notifyListeners();
       return true;
     } catch (e) {
       error = '$e';
-      loading = false; notifyListeners();
+      loading = false;
+      notifyListeners();
       return false;
     }
-
-
-    }
+  }
 
   @override
   void dispose() {
@@ -77,7 +86,6 @@ class RegistrarEmpleadoViewModel extends ChangeNotifier {
     passwordCtrl.dispose();
     descansoInicioCtrl.dispose();
     descansoCadaCtrl.dispose();
-    sectorCtrl.dispose();
     super.dispose();
   }
 }
